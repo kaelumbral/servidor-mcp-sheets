@@ -1,3 +1,4 @@
 name = "servidor-mcp-sheets1"
 main = "src/worker.mjs"
 compatibility_date = "2025-09-21"
+compatibility_flags = ["nodejs_compat"]   # 👈 HABILITA Node.js built-ins

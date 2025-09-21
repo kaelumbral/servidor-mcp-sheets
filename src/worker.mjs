@@ -1,11 +1,20 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
+// CORS amplio (incluye headers que usa ChatGPT)
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, mcp-session-id, x-api-key',
+    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS,HEAD',
+    'Access-Control-Allow-Headers': [
+      'Content-Type',
+      'Accept',
+      'User-Agent',
+      'Authorization',
+      'mcp-session-id',
+      'Mcp-Session-Id',
+      'x-api-key'
+    ].join(', '),
     'Access-Control-Expose-Headers': 'Mcp-Session-Id'
   };
 }
@@ -18,7 +27,7 @@ function withCors(resp) {
 function buildServer(env) {
   const server = new McpServer({ name: 'mcp-gsheet', version: '1.0.0' });
 
-  // --- TOOLS ---
+  // ---- TOOLS ----
   server.registerTool('ping',
     { title: 'Ping', description: 'Health', inputSchema: {} },
     async () => ({ content: [{ type: 'text', text: 'pong' }] })
@@ -104,16 +113,18 @@ function buildServer(env) {
 
 export default {
   async fetch(request, env, ctx) {
-    // Preflight de navegador/cliente
+    // Preflight de CORS
     if (request.method === 'OPTIONS') return withCors(new Response(null, { status: 204 }));
-    // Health para GET sin sesión (evita 1101)
-    if (request.method === 'GET' && !request.headers.get('mcp-session-id')) {
+    // HEAD de sondeo
+    if (request.method === 'HEAD')   return withCors(new Response(null, { status: 200 }));
+    // Health para GET sin sesión (evita 1101 al abrir en navegador)
+    if (request.method === 'GET' && !request.headers.get('mcp-session-id') && !request.headers.get('Mcp-Session-Id')) {
       return withCors(new Response('OK: MCP server up', { status: 200 }));
     }
 
-    // Flujo MCP (initialize, SSE, etc.)
-    const transport = new StreamableHTTPServerTransport();
+    // Flujo MCP (initialize, stream, close)
     const server = buildServer(env);
+    const transport = new StreamableHTTPServerTransport();
     await server.connect(transport);
     const resp = await transport.handleRequest(request);
     return withCors(resp);

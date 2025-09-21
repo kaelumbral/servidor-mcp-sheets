@@ -1,0 +1,9 @@
+{
+  "name": "servidor-mcp-sheets",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.2.0"
+  }
+}

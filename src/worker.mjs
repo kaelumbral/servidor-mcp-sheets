@@ -1,13 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
-// CORS amplio
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': '*', // GET,POST,DELETE,OPTIONS,HEAD...
+    'Access-Control-Allow-Methods': '*',
     'Access-Control-Allow-Headers': '*',
-    'Access-Control-Expose-Headers': 'Mcp-Session-Id'
+    'Access-Control-Expose-Headers': 'Mcp-Session-Id',
   };
 }
 function withCors(resp) {
@@ -104,14 +103,17 @@ function buildServer(env) {
 
 export default {
   async fetch(request, env, ctx) {
-    // Preflight y sondas iniciales
+    const url = new URL(request.url);
+
+    // Preflight y sondas
     if (request.method === 'OPTIONS') return withCors(new Response(null, { status: 204 }));
-    if (request.method === 'HEAD')    return withCors(new Response(null, { status: 200 }));
-    if (request.method === 'GET' && !request.headers.get('mcp-session-id') && !request.headers.get('Mcp-Session-Id')) {
+    if (request.method === 'HEAD' && url.pathname === '/') return withCors(new Response(null, { status: 200 }));
+    // Health SOLO en "/"
+    if (request.method === 'GET' && url.pathname === '/') {
       return withCors(new Response('OK: MCP server up', { status: 200 }));
     }
 
-    // Handshake y stream MCP
+    // Todo lo demás → transporte MCP (incluye GET /sse del handshake)
     try {
       const server = buildServer(env);
       const transport = new StreamableHTTPServerTransport();
@@ -119,7 +121,6 @@ export default {
       const resp = await transport.handleRequest(request);
       return withCors(resp);
     } catch (err) {
-      // Log para ver qué pide ChatGPT
       console.error('MCP error:', err && (err.stack || err));
       return withCors(new Response(JSON.stringify({ error: String(err) }), {
         status: 500,

@@ -116,7 +116,14 @@ export default {
     // Todo lo demás → transporte MCP (incluye GET /sse del handshake)
     try {
       const server = buildServer(env);
-      const transport = new StreamableHTTPServerTransport();
+      const transport = new StreamableHTTPServerTransport({
+  // generador de IDs de sesión (usa Web Crypto del runtime de Workers)
+  sessionIdGenerator: () =>
+    (typeof crypto?.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`),
+});
+
       await server.connect(transport);
       const resp = await transport.handleRequest(request);
       return withCors(resp);

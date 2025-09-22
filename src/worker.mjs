@@ -108,10 +108,12 @@ export default {
     // Preflight y sondas
     if (request.method === 'OPTIONS') return withCors(new Response(null, { status: 204 }));
     if (request.method === 'HEAD' && url.pathname === '/') return withCors(new Response(null, { status: 200 }));
-    // Health SOLO en "/"
-    if (request.method === 'GET' && url.pathname === '/') {
+    // Health SOLO en "/" y solo si NO es una solicitud SSE
+    const isSSE = request.headers.get('accept')?.includes('text/event-stream');
+    if (request.method === 'GET' && url.pathname === '/' && !isSSE) {
       return withCors(new Response('OK: MCP server up', { status: 200 }));
     }
+
 
     // Todo lo demás → transporte MCP (incluye GET /sse del handshake)
     try {

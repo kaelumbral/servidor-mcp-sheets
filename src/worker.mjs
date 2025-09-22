@@ -60,60 +60,96 @@ async function kvListPrompts(env) {
 function buildServer(env) {
   const server = new McpServer({ name: 'mcp-gsheet', version: '1.0.0' });
 
-  // Health
-  server.registerTool('ping',
-    { title: 'Ping', description: 'Health', inputSchema: {} },
+  // Ping
+  server.registerTool(
+    'ping',
+    {
+      title: 'Ping',
+      description: 'Health',
+      inputSchema: { type: 'object', properties: {} }
+    },
     async () => ({ content: [{ type: 'text', text: 'pong' }] })
   );
 
-  // CRUD simple (KV)
-  server.registerTool('list_prompts',
-    { title: 'Listar prompts', description: 'Lee todas las filas (KV)', inputSchema: {} },
+  // Listar prompts (KV)
+  server.registerTool(
+    'list_prompts',
+    {
+      title: 'Listar prompts',
+      description: 'Lee todas las filas (KV)',
+      inputSchema: { type: 'object', properties: {} }
+    },
     async () => {
       const items = await kvListPrompts(env);
       return { content: [{ type: 'text', text: JSON.stringify(items, null, 2) }] };
     }
   );
 
-  server.registerTool('find_prompts',
-    { title: 'Buscar', description: 'Filtra por texto en nombre/plantilla/tags (KV)',
-      inputSchema: { q: { type: 'string' } } },
+  // Buscar (KV)
+  server.registerTool(
+    'find_prompts',
+    {
+      title: 'Buscar',
+      description: 'Filtra por texto en nombre/plantilla/tags (KV)',
+      inputSchema: {
+        type: 'object',
+        properties: { q: { type: 'string' } },
+        required: ['q']
+      }
+    },
     async ({ q }) => {
       const Q = (q || '').toLowerCase();
       const items = await kvListPrompts(env);
-      const filtered = items.filter(it =>
-        (it.nombre || '').toLowerCase().includes(Q) ||
-        (it.plantilla || '').toLowerCase().includes(Q) ||
-        (it.tags || '').toLowerCase().includes(Q)
-      ).map(({ id, nombre, objetivo, tags }) => ({ id, nombre, objetivo, tags }));
+      const filtered = items
+        .filter(it =>
+          (it.nombre || '').toLowerCase().includes(Q) ||
+          (it.plantilla || '').toLowerCase().includes(Q) ||
+          (it.tags || '').toLowerCase().includes(Q)
+        )
+        .map(({ id, nombre, objetivo, tags }) => ({ id, nombre, objetivo, tags }));
       return { content: [{ type: 'text', text: JSON.stringify(filtered, null, 2) }] };
     }
   );
 
-  server.registerTool('append_prompt',
+  // Agregar (KV)
+  server.registerTool(
+    'append_prompt',
     {
-      title: 'Agregar', description: 'Inserta una fila (KV)',
+      title: 'Agregar',
+      description: 'Inserta o actualiza una fila (KV)',
       inputSchema: {
-        nombre: { type: 'string' },
-        objetivo: { type: 'string', optional: true },
-        plantilla: { type: 'string' },
-        tags: { type: 'string', optional: true },
-        autor: { type: 'string', optional: true },
-        notas: { type: 'string', optional: true }
+        type: 'object',
+        properties: {
+          nombre: { type: 'string' },
+          objetivo: { type: 'string' },
+          plantilla: { type: 'string' },
+          tags: { type: 'string' },
+          autor: { type: 'string' },
+          notas: { type: 'string' }
+        },
+        required: ['nombre', 'plantilla']
       }
     },
     async (input) => {
-      if (!input.nombre || !input.plantilla) {
-        return { content: [{ type: 'text', text: 'Error: nombre y plantilla requeridos' }] };
-      }
       const id = await kvPutPrompt(env, input);
       return { content: [{ type: 'text', text: `OK - id ${id}` }] };
     }
   );
 
-  server.registerTool('update_last_used',
-    { title: 'Marcar uso', description: 'Actualiza fecha_ultimo_uso por id o nombre (KV)',
-      inputSchema: { id: { type: 'string', optional: true }, nombre: { type: 'string', optional: true } } },
+  // Marcar uso (KV)
+  server.registerTool(
+    'update_last_used',
+    {
+      title: 'Marcar uso',
+      description: 'Actualiza fecha_ultimo_uso por id o nombre (KV)',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          nombre: { type: 'string' }
+        }
+      }
+    },
     async (input) => {
       let { id, nombre } = input;
       if (!id && nombre) id = await kvGetIdByName(env, nombre);
@@ -128,9 +164,14 @@ function buildServer(env) {
     }
   );
 
-  // (Opcional) Importar desde Google Sheet a KV (si definís APPS_SCRIPT_URL y SHARED_SECRET)
-  server.registerTool('import_from_sheet',
-    { title: 'Importar desde Sheet', description: 'Carga items desde tu WebApp de Apps Script a KV (run once)', inputSchema: {} },
+  // Importar desde Google Sheet (opcional)
+  server.registerTool(
+    'import_from_sheet',
+    {
+      title: 'Importar desde Sheet',
+      description: 'Carga items desde tu WebApp de Apps Script a KV (run once)',
+      inputSchema: { type: 'object', properties: {} }
+    },
     async () => {
       if (!env.APPS_SCRIPT_URL || !env.SHARED_SECRET) {
         return { content: [{ type: 'text', text: 'Error: faltan APPS_SCRIPT_URL / SHARED_SECRET' }] };
@@ -150,9 +191,18 @@ function buildServer(env) {
 
   /* ------- Requeridos por Connectors: search & fetch ------- */
 
-  // search → devuelve { results: [{id,title,url}] }
-  server.registerTool('search',
-    { title: 'Search', description: 'Busca prompts en KV (para Connectors)', inputSchema: { query: { type: 'string' } } },
+  // search → { results: [{ id, title, url }] }
+  server.registerTool(
+    'search',
+    {
+      title: 'Search',
+      description: 'Busca prompts en KV (para Connectors)',
+      inputSchema: {
+        type: 'object',
+        properties: { query: { type: 'string' } },
+        required: ['query']
+      }
+    },
     async ({ query }) => {
       const Q = (query || '').toLowerCase();
       const items = await kvListPrompts(env);
@@ -172,9 +222,18 @@ function buildServer(env) {
     }
   );
 
-  // fetch → devuelve { id,title,text,url,metadata }
-  server.registerTool('fetch',
-    { title: 'Fetch', description: 'Obtiene un prompt por id (para Connectors)', inputSchema: { id: { type: 'string' } } },
+  // fetch → { id, title, text, url, metadata }
+  server.registerTool(
+    'fetch',
+    {
+      title: 'Fetch',
+      description: 'Obtiene un prompt por id (para Connectors)',
+      inputSchema: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+        required: ['id']
+      }
+    },
     async ({ id }) => {
       const doc = await kvGetPromptById(env, id);
       if (!doc) return { content: [{ type: 'text', text: JSON.stringify({ error: 'not found', id }) }] };
